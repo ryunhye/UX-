@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paris Map</title>
+<style>
+  :root {
+    --blue: #1428ff; --yellow: #ffff00; --bg: #ffffff;
+
+    /* 화면 크기에 맞춰 같이 커지고 줄어드는 UI 크기 (시안 1912px 기준) */
+    --label-h: clamp(24px, 1.95vw, 40px);      /* 카테고리 라벨 이미지 높이 */
+    --tg-w:    clamp(36px, 2.6vw, 52px);       /* 토글 가로 */
+    --act-w:   clamp(116px, 9.3vw, 190px);     /* 여정 버튼 가로 */
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; height: 100%; background: var(--bg);
+    overflow: hidden; touch-action: none; cursor: none;
+  }
+
+  /* 지도가 밝혀지는 캔버스 */
+  #stage { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+
+  /* ============ 화면 그리드 ============
+     ┌──────────────┬────────────────────────────┬──────────────┐
+     │ 로고 (1~2칸) │                            │              │
+     ├──────────────┤        지도 (2칸)          │              │
+     │ 카테고리     │   (3개 행을 모두 차지)     │              │
+     │              │                            ├──────────────┤
+     │              │                            │ 여정 버튼    │
+     └──────────────┴────────────────────────────┴──────────────┘
+     열 비율 18 : 66 : 16 → 숫자만 바꾸면 지도 칸 크기가 바뀌어요. */
+  #app {
+    position: fixed; inset: 0; z-index: 8;
+    display: grid;
+    grid-template-columns: minmax(0, 18fr) minmax(0, 66fr) minmax(0, 16fr);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    pointer-events: none;                      /* 빈 칸은 클릭이 아래 지도로 통과 */
+  }
+  #app > * { min-width: 0; }
+
+  .brand {
+    grid-column: 1 / 3; grid-row: 1; justify-self: start;
+    margin: clamp(16px, 5.5vh, 64px) 0 0 clamp(16px, 3vw, 60px);
+  transform: translate(0, -30px);
+  }
+ .brand img {
+  display: block;
+  width: clamp(200px, 35vw, 650px);
+  height: auto;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+  #mapArea { grid-column: 2; grid-row: 1 / 4; }   /* 지도가 놓이는 칸 (JS가 이 칸 크기를 읽어요) */
+
+  .ui-panel {
+    grid-column: 1; grid-row: 2; align-self: start; justify-self: start;
+    margin: clamp(20px, 8.5vh, 100px) 0 0 clamp(16px, 3.4vw, 66px);
+    display: flex; flex-direction: column; align-items: flex-start;
+    gap: clamp(12px, 2.2vh, 28px);
+    pointer-events: auto;
+  }
+  .category-control {
+    display: grid;
+    grid-template-columns: calc(var(--label-h) * 3.1) auto;   /* 라벨 칸을 고정 → 토글이 세로로 정렬됨 */
+    align-items: center;
+    column-gap: clamp(8px, .7vw, 14px);
+    padding: 0; border: 0; background: transparent;           /* 버튼 기본 모양 제거 */
+    cursor: pointer; -webkit-tap-highlight-color: transparent;
+  }
+  .category-control img {
+    display: block; height: var(--label-h); width: auto; max-width: none;
+    user-select: none; -webkit-user-drag: none;
+  }
+  .toggle {
+    --tg-h: calc(var(--tg-w) * .46);
+    position: relative; display: block;
+    width: var(--tg-w); height: var(--tg-h);
+    border-radius: 999px; background: #666;
+    transition: background .2s ease;
+  }
+  .toggle::after {
+    content: ""; position: absolute; top: 50%; left: calc(var(--tg-h) * .17);
+    width: calc(var(--tg-h) * .66); height: calc(var(--tg-h) * .66);
+    border-radius: 50%; background: #fff;
+    transform: translateY(-50%);
+    transition: transform .2s ease, background .2s ease;
+  }
+  .category-control[aria-pressed="true"] .toggle { background: var(--yellow); }
+  .category-control[aria-pressed="true"] .toggle::after {
+    transform: translate(calc(var(--tg-w) - var(--tg-h)), -50%);
+    background: var(--blue);
+  }
+
+  .trip-actions {
+    grid-column: 3; grid-row: 3; align-self: end; justify-self: end;
+    margin: 0 clamp(16px, 3.8vw, 72px) clamp(16px, 7vh, 80px) 0;
+    display: flex; flex-direction: column; align-items: flex-end;
+    gap: clamp(12px, 3.1vh, 34px);
+    pointer-events: auto;
+  }
+  .trip-actions button {
+    border: 0; background: transparent; padding: 0; cursor: pointer;
+    transition: transform .15s ease; -webkit-tap-highlight-color: transparent;
+  }
+  .trip-actions img {
+    display: block; width: var(--act-w); height: auto;
+    user-select: none; -webkit-user-drag: none;
+  }
+  .trip-actions button:hover { transform: scale(1.03); }
+  .trip-actions button:active { transform: scale(.98); }
+
+  .hint {
+    grid-column: 2; grid-row: 3; align-self: end; justify-self: center;
+    margin-bottom: 28px; text-align: center;
+    font: 14px/1.4 "Helvetica Neue", Arial, sans-serif; color: #c9cdea;
+    transition: opacity .4s;
+  }
+  .hint.gone { opacity: 0; }
+
+  button:focus-visible, .go-btn:focus-visible { outline: 2px solid var(--yellow); outline-offset: 4px; }
+
+  /* 세로로 긴 화면 / 모바일: 로고 → 카테고리(가로) → 지도 → 여정 버튼(가로) 순으로 쌓기 */
+  @media (max-width: 899px), (max-aspect-ratio: 1/1) {
+    :root {
+      --label-h: clamp(22px, 5.4vw, 34px);
+      --tg-w:    clamp(34px, 8vw, 46px);
+      --act-w:   clamp(108px, 30vw, 170px);
+    }
+    #app {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: auto auto minmax(0, 1fr) auto;
+    }
+    .brand { grid-column: 1; grid-row: 1; margin: 10px 0 0 16px; }
+    .brand img { width: clamp(200px, 35vw, 650px); }
+    .ui-panel {
+      grid-column: 1; grid-row: 2; flex-direction: row; flex-wrap: wrap;
+      gap: 10px 18px; margin: 12px 16px 0;
+    }
+    #mapArea { grid-column: 1; grid-row: 3; }
+    .hint { grid-column: 1; grid-row: 3; }
+    .trip-actions {
+      grid-column: 1; grid-row: 4; justify-self: center;
+      flex-direction: row; align-items: center; gap: 12px; margin: 0 16px 16px;
+    }
+  }
+
+  /* 랜드마크 (클릭하면 상세페이지 버튼이 나타남) */
+  .lm {
+    position: fixed; display: block; z-index: 2;
+    cursor: none; -webkit-tap-highlight-color: transparent;
+  }
+  .lm img {
+    width: 100%; height: 100%; display: block;
+    object-fit: contain;                          /* 이미지 비율이 달라도 찌그러지지 않게 */
+    transition: transform .25s ease;
+    pointer-events: none; user-select: none; -webkit-user-drag: none;
+  }
+  .lm:hover img, .lm:focus-visible img { transform: scale(1.07); }
+  .lm:focus-visible { outline: none; }
+
+  /* 커서: 흰 배경/파란 배경 어디서든 보이도록 difference */
+  .ring {
+    position: fixed; left: 0; top: 0; z-index: 30;
+    width: 14px; height: 14px; margin: -7px 0 0 -7px;
+    border: 1.5px solid #fff; border-radius: 50%;
+    mix-blend-mode: difference; pointer-events: none;
+    opacity: 0; transition: width .2s, height .2s, margin .2s, opacity .2s;
+  }
+  .ring.on { opacity: 1; }
+  .ring.big { width: 34px; height: 34px; margin: -17px 0 0 -17px; }
+
+  /* 상세페이지 이동 버튼 (랜드마크를 누르면 에셋 바로 아래에 나타남, 확대는 없음) */
+  .go-btn {
+    position: fixed; z-index: 9; left: 0; top: 0;
+    padding: .8em 1.5em; border-radius: 999px;
+    background: var(--yellow); color: var(--blue); text-decoration: none;
+    font: 700 clamp(13px, 1.05vw, 17px)/1 "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", "Helvetica Neue", Arial, sans-serif;
+    white-space: nowrap;
+    box-shadow: 0 0 0 2px var(--blue);          /* 흰 바탕에서도 또렷하게 */
+    cursor: none; -webkit-tap-highlight-color: transparent;
+    opacity: 0; pointer-events: none;
+    transform: translate(-50%, 6px);
+    transition: opacity .2s ease, transform .25s cubic-bezier(.16,.84,.24,1), background .15s, color .15s;
+  }
+  .go-btn.show { opacity: 1; pointer-events: auto; transform: translate(-50%, 0); }
+  .go-btn:hover { background: var(--blue); color: var(--yellow); box-shadow: 0 0 0 2px var(--yellow); }
+
+  /* 선택한 랜드마크를 순서대로 연결하는 경로 */
+  #landmarkRoute {
+    position: fixed; inset: 0; width: 100%; height: 100%;
+    z-index: 1; pointer-events: none; overflow: visible;
+  }
+  #landmarkRouteLine {
+    fill: none; stroke: #ffff00; stroke-width: 5;
+    stroke-linecap: round; stroke-linejoin: round;
+    stroke-dasharray: 8 7; vector-effect: non-scaling-stroke;
+    filter: drop-shadow(0 0 3px rgba(20,40,255,.9));
+  }
+  #landmarkRoutePoints circle {
+    fill: #ffff00; stroke: #1428ff; stroke-width: 2.5;
+    vector-effect: non-scaling-stroke;
+  }
+
+  /* 여행 끝내기 결과 화면 */
+  .trip-result {
+    position: fixed; inset: 0; z-index: 20;
+    display: none; align-items: center; justify-content: center;
+    padding: 24px;
+    background: rgba(20,40,255,.92); color: #ffff00;
+    font: 700 clamp(20px, 3vw, 42px)/1.4 "Helvetica Neue", Arial, sans-serif;
+    text-align: center; cursor: auto;
+  }
+  .trip-result.show { display: flex; }
+  .trip-result-inner { max-width: 680px; }
+  .result-logo { display: block; margin: 0 auto; width: clamp(240px, 34vw, 560px); height: auto; user-select: none; -webkit-user-drag: none; }  /* 로고 크기는 width만 바꾸세요 */
+  .trip-result p {
+    margin: 12px 0 24px; color: white;
+    font: 400 clamp(14px, 1.4vw, 18px)/1.6 "Helvetica Neue", Arial, sans-serif;
+  }
+  .trip-result button {
+    border: 2px solid #ffff00; border-radius: 999px; padding: 10px 22px;
+    background: #ffff00; color: #1428ff;
+    font: 700 16px/1.2 "Helvetica Neue", Arial, sans-serif; cursor: pointer;
+  }
+  .trip-result-inner .route-list { width: 100vw; margin: 14px 0 22px calc(50% - 50vw); display: flex; justify-content: center; }
+  .route-list svg { display: block; flex: none; max-width: 92vw; height: auto; max-height: 45vh; overflow: visible; }
+  .route-list .mini-line {
+    fill: none; stroke: #ffff00;
+    stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 6 5;
+    vector-effect: non-scaling-stroke;
+  }
+  .route-list text {
+    fill: #ffff00; text-anchor: middle; dominant-baseline: central;
+    font-family: "Helvetica Neue", Arial, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+    stroke: #1428ff; stroke-width: 4px; stroke-linejoin: round; paint-order: stroke;  /* 선 위에서도 또렷하게 */
+  }
+  .route-list .mini-num { font-weight: 900; }
+  .route-list .mini-name { font-weight: 400; }
+
+  /* 첫 랜딩 화면 (클릭하면 지도 메인으로 넘어가요) */
+  .landing {
+    position: fixed; inset: 0; z-index: 40;
+    background: #fff; cursor: pointer;
+    transition: opacity .6s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .landing img {
+    display: block; width: 100%; height: 100%;
+    object-fit: cover; object-position: center;   /* 화면을 꽉 채움 (전체가 보이게 하려면 contain) */
+    user-select: none; -webkit-user-drag: none;
+  }
+  .landing.hide { opacity: 0; pointer-events: none; }
+</style>
+</head>
+<body>
+<canvas id="stage"></canvas>
+<svg id="landmarkRoute" aria-hidden="true"><polyline id="landmarkRouteLine" points=""></polyline><g id="landmarkRoutePoints"></g></svg>
+
+<div id="app">
+<header class="brand">
+  <img src="parislogo.png" alt="Paris Map">
+</header>
+
+  <nav class="ui-panel" id="uiPanel" aria-label="장소 카테고리">
+    <button class="category-control" type="button" data-category="landmark" aria-pressed="true" aria-label="랜드마크 표시">
+      <img src="btn-landmark.png" alt="랜드마크"><span class="toggle" aria-hidden="true"></span>
+    </button>
+    <button class="category-control" type="button" data-category="museum" aria-pressed="false" aria-label="박물관 표시">
+      <img src="btn-museum.png" alt="박물관"><span class="toggle" aria-hidden="true"></span>
+    </button>
+    <button class="category-control" type="button" data-category="restaurant" aria-pressed="false" aria-label="식당 표시">
+      <img src="btn-restaurant.png" alt="식당"><span class="toggle" aria-hidden="true"></span>
+    </button>
+    <button class="category-control" type="button" data-category="cafe" aria-pressed="false" aria-label="카페 표시">
+      <img src="btn-cafe.png" alt="카페"><span class="toggle" aria-hidden="true"></span>
+    </button>
+  </nav>
+
+  <main id="mapArea" aria-hidden="true"></main>
+
+  <div class="hint" id="hint">Move your cursor to light up the map</div>
+
+  <div class="trip-actions">
+    <button type="button" id="restartTrip" aria-label="여정 다시하기"><img src="btn-restart.png" alt="여정 다시하기"></button>
+    <button type="button" id="finishTrip" aria-label="여행 끝내기"><img src="btn-finish.png" alt="여행 끝내기"></button>
+  </div>
+</div>
+
+<div class="trip-result" id="tripResult" role="dialog" aria-modal="true" aria-label="여행 결과">
+  <div class="trip-result-inner">
+    <img class="result-logo" src="myparismap.png" alt="MY PARIS MAP">
+    <p id="tripSummary">파리에서 발견한 장소들을 둘러봤어요.</p>
+    <button type="button" id="closeTripResult">지도로 돌아가기</button>
+  </div>
+</div>
+
+<div class="ring" id="ring"></div>
+
+<audio id="bgm" src="Parismusic.mp3" loop preload="auto"></audio>
+
+<div class="landing" id="landing" role="button" tabindex="0" aria-label="파리 지도 시작하기">
+  <img src="firstbg.png" alt="Paris Map">
+</div>
+
+<script>
+(function () {
+
+  /* ============ 설정 ============ */
+
+  var MAP_SRC = 'map.png';
+  var BLUE = '#1428ff';
+  var MARGIN = 1.0;          // 지도가 '지도 칸' 안에서 차지하는 비율
+  var RADIUS_RATIO = 0.06;    // 밝혀지는 원 반지름 (화면 짧은 변 기준) ← 작게: 0.04 / 크게: 0.09
+  var RADIUS_MIN = 36;        // 최소 반지름(px)
+  var FOLLOW = 0.35;          // 원이 마우스를 따라오는 속도 (작을수록 부드럽게 끌림)
+  var ASSET_SIZE = 0.10;      // 모든 에셋 공통 크기 (지도 가로폭 대비) ← 전체 키우기/줄이기는 이 숫자만
+  var LIT_RATIO = 0.42;       // 랜드마크를 눌렀을 때 주변 지도가 밝혀지는 반지름 (화면 짧은 변 대비)
+  var LIGHT_MS = 1150;        // 주변 지도가 밝혀지는 시간
+ 
+  /* 랜드마크 배치
+     x, y  : 지도 이미지 안에서의 중심 위치 (0~1)
+     size  : 에셋 한 변 길이 (지도 가로폭 대비 비율)
+     href  : 상세페이지 버튼을 눌렀을 때 이동할 페이지
+     cat   : 카테고리 (landmark 랜드마크 / museum 미술관 / cafe 카페 / restaurant 식당) → 왼쪽 토글과 연결
+     위치가 어긋나면 x, y, size 숫자만 조금씩 바꾸면 돼요. */
+  var LANDMARKS = [
+    /* ---- 랜드마크 ---- */
+    { id: 'eiffel',     cat: 'landmark', name: 'Eiffel Tower',     img: 'lm-eiffel.png',     href: 'eiffel.html',       x: 0.20, y: 0.55, size: 0.096 },
+    { id: 'versailles', cat: 'landmark', name: 'Versailles',       img: 'lm-versailles.png',   href: 'versailles.html',   x: 0.22, y: 0.87, size: 0.088 },
+    { id: 'sacre',      cat: 'landmark', name: 'Montmartre',       img: 'lm-montmartre.png',   href: 'montmartre.html',   x: 0.58, y: 0.12, size: 0.093 },
+    { id: 'arc',        cat: 'landmark', name: 'Arc de Triomphe',  img: 'lm-arc.png',     href: 'arc.html',          x: 0.25, y: 0.30, size: 0.098 },
+    { id: 'notre',      cat: 'landmark', name: 'Notre-Dame',       img: 'lm-notredame.png',   href: 'notredame.html',    x: 0.62, y: 0.70, size: 0.078 },
+    { id: 'hotelville', cat: 'landmark', name: 'Hôtel de Ville',   img: 'lm-hoteldeville.png', href: 'hoteldeville.html', x: 0.76, y: 0.52, size: 0.08 },
+    /* ---- 미술관 ---- */
+    { id: 'orsay',     cat: 'museum', name: "Musée d'Orsay",        img: 'lm-orsay.png',   href: 'orsay.html',     x: 0.40, y: 0.64, size: 0.08 },
+    { id: 'pompidou',  cat: 'museum', name: 'Centre Pompidou',      img: 'lm-pompidou.png',   href: 'pompidou.html',  x: 0.68, y: 0.36, size: 0.08 },
+    { id: 'louvre',    cat: 'museum', name: 'The Louvre',           img: 'lm-louvre.png',   href: 'louvre.html',    x: 0.46, y: 0.46, size: 0.092 },
+    { id: 'orangerie', cat: 'museum', name: "Musée de l'Orangerie", img: 'lm-orangerie.png', href: 'orangerie.html', x: 0.34, y: 0.46, size: 0.08 },
+    { id: 'opera',     cat: 'museum', name: 'Opéra Garnier',        img: 'lm-opera.png',   href: 'opera.html',     x: 0.47, y: 0.28, size: 0.08 },
+    /* ---- 카페 ---- */
+    { id: 'cafe1', cat: 'cafe', name: 'Café 1', img: 'lm-cafe1.png', href: 'cafe1.html', x: 0.10, y: 0.20, size: 0.072 },
+    { id: 'cafe2', cat: 'cafe', name: 'Café 2', img: 'lm-cafe2.png', href: 'cafe2.html', x: 0.87, y: 0.22, size: 0.072 },
+    { id: 'cafe3', cat: 'cafe', name: 'Café 3', img: 'lm-cafe3.png', href: 'cafe3.html', x: 0.08, y: 0.40, size: 0.072 },
+    { id: 'cafe4', cat: 'cafe', name: 'Café 4', img: 'lm-cafe4.png', href: 'cafe4.html', x: 0.82, y: 0.83, size: 0.072 },
+    /* ---- 식당 ---- */
+    { id: 'food1', cat: 'restaurant', name: 'Restaurant 1', img: 'lm-restaurant1.png', href: 'restaurant1.html', x: 0.08, y: 0.68, size: 0.072 },
+    { id: 'food2', cat: 'restaurant', name: 'Restaurant 2', img: 'lm-restaurant2.png', href: 'restaurant2.html', x: 0.74, y: 0.15, size: 0.072 },
+    { id: 'food3', cat: 'restaurant', name: 'Restaurant 3', img: 'lm-restaurant3.png', href: 'restaurant3.html', x: 0.52, y: 0.84, size: 0.072 },
+    { id: 'food4', cat: 'restaurant', name: 'Restaurant 4', img: 'lm-restaurant4.png', href: 'restaurant4.html', x: 0.89, y: 0.51, size: 0.072 }
+  ];
+
+  /* ============ 준비 ============ */
+
+  var stage = document.getElementById('stage');
+  var ctx = stage.getContext('2d');
+  var ring = document.getElementById('ring');
+  var hint = document.getElementById('hint');
+  var area = document.getElementById('mapArea');   // 그리드의 '지도 칸'
+
+  var maskC = document.createElement('canvas');   // 지나간 길이 누적되는 마스크
+  var maskX = maskC.getContext('2d');
+  var layerC = document.createElement('canvas');  // 파란 배경 + 흰 노선 (마스크로 오려 보여줌)
+  var sprite = document.createElement('canvas');  // 부드러운 원 도장
+
+  var mapImg = new Image();
+  var mapReady = false;
+
+  var vw = 0, vh = 0, dpr = 1;
+  var rect = { x: 0, y: 0, w: 1, h: 1 };          // 화면에 놓인 지도 영역
+  var R = 60;
+  var pts = [];                                    // 지나간 점 (지도 기준 0~1 좌표) → 리사이즈해도 유지
+  var dirty = true;
+  var lit = [];                                    // 이미 눌러 본 랜드마크 id (주변 지도가 켜진 채 유지)
+  var litR = 300;
+  var anim = null;                                 // 클릭 시 퍼지는 빛
+  var focused = null;                              // 지금 상세페이지 버튼이 열려 있는 랜드마크 { L, el }
+  var routeIds = [];                               // 클릭한 랜드마크 순서
+  var lastKey = '';
+
+  /* 랜딩 화면: 처음 들어왔을 때만 보여요 (같은 탭에서 새로고침/복귀하면 바로 지도) */
+  var landing = document.getElementById('landing');
+  var landingOn = true;
+  try { if (sessionStorage.getItem('parisLanding') === '1') landingOn = false; } catch (e) {}
+  if (!landingOn) landing.parentNode.removeChild(landing);
+
+  /* 배경음악: 브라우저는 클릭 전엔 소리를 막기 때문에, 랜딩을 클릭하는 순간 재생해요 */
+  var bgm = document.getElementById('bgm');
+  var BGM_VOLUME = 0.5;                            // 0(무음) ~ 1(최대)
+  bgm.volume = BGM_VOLUME;
+  function startMusic() {
+    if (!bgm.paused) return;
+    var pr = bgm.play();
+    if (pr && pr.catch) pr.catch(function () {});  // 막혀도 에러 없이 넘어감
+  }
+  /* 랜딩 없이 바로 지도가 열린 경우(새로고침 등)엔 첫 클릭/키 입력 때 재생 */
+  if (!landingOn) {
+    ['pointerdown', 'keydown'].forEach(function (ev) {
+      window.addEventListener(ev, function once() {
+        startMusic();
+        window.removeEventListener(ev, once);
+      });
+    });
+  }
+
+  function enterMain() {
+    if (!landingOn) return;
+    landingOn = false;
+    startMusic();
+    try { sessionStorage.setItem('parisLanding', '1'); } catch (e) {}
+    landing.classList.add('hide');
+    setTimeout(function () { if (landing.parentNode) landing.parentNode.removeChild(landing); }, 700);
+  }
+  landing.addEventListener('click', enterMain);
+  landing.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); enterMain(); }
+  });
+
+  /* ============ 상태 저장 / 복원 ============
+     상세페이지로 이동하면 이 페이지가 새로 로드되기 때문에
+     지나간 길(pts) · 눌러 본 랜드마크(lit) · 클릭 순서(routeIds)를
+     sessionStorage에 저장해 두었다가 돌아왔을 때 복원해요. */
+  var STORE_KEY = 'parisMapState';
+  var resetting = false;                           // '여정 다시하기' 중에는 저장하지 않음
+
+  function saveState() {
+    if (resetting) return;
+    try {
+      sessionStorage.setItem(STORE_KEY, JSON.stringify({
+        pts: pts.slice(-6000).map(function (p) {   // 용량 절약: 최근 것만, 소수점 4자리까지
+          return [Math.round(p[0] * 10000) / 10000, Math.round(p[1] * 10000) / 10000];
+        }),
+        lit: lit,
+        routeIds: routeIds
+      }));
+    } catch (e) {}
+  }
+
+  function loadState() {
+    try {
+      var s = JSON.parse(sessionStorage.getItem(STORE_KEY) || 'null');
+      if (!s) return;
+      pts = Array.isArray(s.pts) ? s.pts : [];
+      lit = Array.isArray(s.lit) ? s.lit : [];
+      routeIds = Array.isArray(s.routeIds) ? s.routeIds : [];
+    } catch (e) {}
+  }
+
+  loadState();                                     // 페이지가 열리자마자 복원
+
+  /* 랜드마크 링크 생성 */
+  var lmEls = LANDMARKS.map(function (L) {
+    var a = document.createElement('a');
+    a.className = 'lm';
+    a.href = L.href;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    a.setAttribute('aria-label', L.name);
+    var im = document.createElement('img');
+    im.src = L.img; im.alt = '';
+    a.appendChild(im);
+    document.body.appendChild(a);
+    a.addEventListener('click', function (e) {
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return;
+      e.preventDefault();
+      if (routeIds.indexOf(L.id) < 0) routeIds.push(L.id);
+      renderLandmarkRoute();
+      saveState();
+      focusOn(L, a);
+    });
+    a.addEventListener('pointerenter', function () { ring.classList.add('big'); });
+    a.addEventListener('pointerleave', function () { ring.classList.remove('big'); });
+    return a;
+  });
+
+  /* 토글 초기 상태에 맞춰 에셋 표시/숨김 (처음엔 랜드마크만) */
+  (function applyInitialCategories() {
+    document.querySelectorAll('.category-control').forEach(function (btn) {
+      var on = btn.getAttribute('aria-pressed') === 'true';
+      var cat = btn.getAttribute('data-category');
+      LANDMARKS.forEach(function (L, i) {
+        if (L.cat !== cat) return;
+        lmEls[i].style.visibility = on ? 'visible' : 'hidden';
+        lmEls[i].style.pointerEvents = on ? 'auto' : 'none';
+      });
+    });
+  })();
+
+  /* 상세페이지로 가는 버튼 */
+  var goBtn = document.createElement('a');
+  goBtn.className = 'go-btn';
+  goBtn.textContent = '상세페이지 보기 →';
+  goBtn.setAttribute('tabindex', '-1');
+  goBtn.target = '_blank';                         // 상세페이지는 새 탭에서 열기
+  goBtn.rel = 'noopener';
+  document.body.appendChild(goBtn);
+  goBtn.addEventListener('pointerenter', function () { ring.classList.add('big'); });
+  goBtn.addEventListener('pointerleave', function () { ring.classList.remove('big'); });
+  goBtn.addEventListener('click', saveState);      // 상세페이지로 넘어가기 직전에 한 번 더 저장
+
+  /* ============ 레이아웃 ============ */
+
+  function layout() {
+    vw = window.innerWidth; vh = window.innerHeight;
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+    [stage, maskC, layerC].forEach(function (c) { c.width = Math.round(vw * dpr); c.height = Math.round(vh * dpr); });
+    stage.style.width = vw + 'px'; stage.style.height = vh + 'px';
+
+    /* 지도는 화면 전체가 아니라 그리드의 '지도 칸' 안에 맞춰 들어가요 */
+    var ar = area.getBoundingClientRect();
+    var iw = mapReady ? mapImg.naturalWidth : 1600;
+    var ih = mapReady ? mapImg.naturalHeight : 1302;
+
+    /* 가로와 세로 중 더 좁은 쪽에 맞춰 전체 지도를 표시 */
+    var s = Math.min(ar.width / iw, ar.height / ih);
+
+    rect.w = iw * s;
+    rect.h = ih * s;
+
+    /* 지도 칸의 정중앙에 배치 */
+    rect.x = ar.left + (ar.width - rect.w) / 2;
+    rect.y = ar.top + (ar.height - rect.h) / 2;
+
+    R = Math.max(RADIUS_MIN, Math.min(vw, vh) * RADIUS_RATIO);
+    litR = Math.min(vw, vh) * LIT_RATIO;
+    makeSprite();
+    buildLayer();
+    replay();
+
+    /* 랜드마크 위치 */
+    LANDMARKS.forEach(function (L, i) {
+      var size = rect.w * ASSET_SIZE, el = lmEls[i];
+      el.style.width = size + 'px';
+      el.style.height = size + 'px';
+      el.style.left = (rect.x + L.x * rect.w - size / 2) + 'px';
+      el.style.top  = (rect.y + L.y * rect.h - size / 2) + 'px';
+    });
+    renderLandmarkRoute();
+    placeGoBtn();
+    dirty = true;
+  }
+
+  /* 크기·칸이 실제로 바뀌었을 때만 다시 계산 */
+  function relayout() {
+    var ar = area.getBoundingClientRect();
+    var key = [window.innerWidth, window.innerHeight, Math.round(ar.left), Math.round(ar.top), Math.round(ar.width), Math.round(ar.height)].join();
+    if (key !== lastKey) layout();
+  }
+
+  /* 부드러운 원 도장 */
+  function makeSprite() {
+    var d = Math.ceil(R * 2 * dpr);
+    sprite.width = sprite.height = d;
+    var sc = sprite.getContext('2d');
+    var g = sc.createRadialGradient(d / 2, d / 2, 0, d / 2, d / 2, d / 2);
+    g.addColorStop(0, 'rgba(255,255,255,1)');
+    g.addColorStop(0.6, 'rgba(255,255,255,1)');
+    g.addColorStop(0.82, 'rgba(255,255,255,0.55)');
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    sc.fillStyle = g;
+    sc.fillRect(0, 0, d, d);
+  }
+
+  /* 파란 배경 + 흰 노선 레이어 (파란 선/흰 바탕 지도 → 흰 선/파란 바탕으로 반전) */
+  function buildLayer() {
+    var lc = layerC.getContext('2d');
+    lc.setTransform(dpr, 0, 0, dpr, 0, 0);
+    lc.fillStyle = BLUE;
+    lc.fillRect(0, 0, vw, vh);
+    if (!mapReady) return;
+
+    var tw = Math.max(1, Math.round(rect.w * dpr)), th = Math.max(1, Math.round(rect.h * dpr));
+    var t = document.createElement('canvas');
+    t.width = tw; t.height = th;
+    var tc = t.getContext('2d');
+    tc.fillStyle = '#fff'; tc.fillRect(0, 0, tw, th);
+    tc.drawImage(mapImg, 0, 0, tw, th);
+    tc.globalCompositeOperation = 'difference';   // 255 - p
+    tc.fillStyle = '#fff'; tc.fillRect(0, 0, tw, th);
+    tc.globalCompositeOperation = 'lighter';      // + 파랑 → 바탕은 파랑, 선은 흰색
+    tc.fillStyle = BLUE; tc.fillRect(0, 0, tw, th);
+
+    lc.drawImage(t, rect.x, rect.y, rect.w, rect.h);
+  }
+
+  /* ============ 지나간 길 그리기 ============ */
+
+  function stamp(x, y) {
+    maskX.drawImage(sprite, x - R, y - R, R * 2, R * 2);
+  }
+
+  function replay() {
+    maskX.setTransform(dpr, 0, 0, dpr, 0, 0);
+    maskX.clearRect(0, 0, vw, vh);
+    for (var i = 0; i < pts.length; i++) {
+      stamp(rect.x + pts[i][0] * rect.w, rect.y + pts[i][1] * rect.h);
+    }
+    lit.forEach(function (id) {
+      LANDMARKS.forEach(function (L) {
+        if (L.id === id) drawLit(rect.x + L.x * rect.w, rect.y + L.y * rect.h, litR);
+      });
+    });
+  }
+
+  /* 랜드마크 주변을 크게 밝히는 부드러운 원 */
+  function drawLit(cx, cy, r) {
+    var g = maskX.createRadialGradient(cx, cy, 0, cx, cy, r);
+    g.addColorStop(0, 'rgba(255,255,255,1)');
+    g.addColorStop(0.7, 'rgba(255,255,255,1)');
+    g.addColorStop(0.88, 'rgba(255,255,255,0.55)');
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    maskX.fillStyle = g;
+    maskX.fillRect(cx - r, cy - r, r * 2, r * 2);
+  }
+
+  /* 클릭한 랜드마크들을 클릭 순서대로 연결 */
+  function renderLandmarkRoute() {
+    var svg = document.getElementById('landmarkRoute');
+    var line = document.getElementById('landmarkRouteLine');
+    var dots = document.getElementById('landmarkRoutePoints');
+    svg.setAttribute('viewBox', '0 0 ' + vw + ' ' + vh);
+    var points = routeIds.map(function (id) {
+      return LANDMARKS.find(function (L) { return L.id === id; });
+    }).filter(Boolean).map(function (L) {
+      return { L: L, x: rect.x + L.x * rect.w, y: rect.y + L.y * rect.h };
+    });
+    line.setAttribute('points', points.map(function (p) { return p.x + ',' + p.y; }).join(' '));
+    dots.innerHTML = points.map(function (p, i) {
+      return '<circle cx="' + p.x + '" cy="' + p.y + '" r="6"><title>' + (i + 1) + '. ' + p.L.name + '</title></circle>';
+    }).join('');
+  }
+
+  /* ============ 랜드마크 클릭 → 상세페이지 버튼 ============ */
+
+  /* 버튼 위치: 에셋 바로 아래 가운데 (아래 공간이 모자라면 위), 화면 밖으로 안 나가게 */
+  function placeGoBtn() {
+    if (!focused) return;
+    var L = focused.L;
+    var size = rect.w * ASSET_SIZE;
+    var cx = rect.x + L.x * rect.w, cy = rect.y + L.y * rect.h;
+    var bw = goBtn.offsetWidth || 150, bh = goBtn.offsetHeight || 40, gap = 10;
+    var top = cy + size / 2 + gap;
+    if (top + bh > vh - 8) top = cy - size / 2 - gap - bh;
+    goBtn.style.left = Math.max(bw / 2 + 8, Math.min(vw - bw / 2 - 8, cx)) + 'px';
+    goBtn.style.top = Math.max(8, top) + 'px';
+  }
+
+  /* 에셋은 그 자리에 그대로 두고, 상세페이지 버튼만 나타나요 (확대 없음) */
+  function focusOn(L, el) {
+    if (focused && focused.el === el) return;
+    focused = { L: L, el: el };
+    hint.classList.add('gone');
+    ring.classList.remove('big');
+
+    goBtn.href = L.href;
+    goBtn.setAttribute('aria-label', L.name + ' 상세페이지로 이동');
+    goBtn.removeAttribute('tabindex');
+    placeGoBtn();
+    goBtn.classList.add('show');
+
+    anim = { cx: rect.x + L.x * rect.w, cy: rect.y + L.y * rect.h, r0: R, t0: performance.now(), dur: LIGHT_MS };
+    if (lit.indexOf(L.id) < 0) lit.push(L.id);
+    saveState();
+  }
+
+  /* 배경을 누르거나 Esc → 버튼 닫기 */
+  function resetFocus() {
+    if (!focused) return;
+    focused = null;
+    goBtn.classList.remove('show');
+    goBtn.setAttribute('tabindex', '-1');
+  }
+
+  window.addEventListener('click', function (e) {
+    if (!focused) return;
+    var t = e.target;
+    if (t && t.closest && (t.closest('.lm') || t.closest('.go-btn'))) return;
+    resetFocus();
+  });
+  window.addEventListener('keydown', function (e) { if (e.key === 'Escape') resetFocus(); });
+
+  function addPoint(x, y) {
+    stamp(x, y);
+    pts.push([(x - rect.x) / rect.w, (y - rect.y) / rect.h]);
+    if (pts.length > 40000) pts.splice(0, 10000);
+    dirty = true;
+  }
+
+  function render() {
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.clearRect(0, 0, vw, vh);
+    ctx.drawImage(maskC, 0, 0, vw, vh);
+    ctx.globalCompositeOperation = 'source-in';
+    ctx.drawImage(layerC, 0, 0, vw, vh);
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
+  /* ============ 포인터 ============ */
+
+  var mx = 0, my = 0, hx = 0, hy = 0, started = false, active = false;
+
+  function move(e) {
+    if (landingOn) return;                         // 랜딩 화면에서는 지도를 밝히지 않음
+    mx = e.clientX; my = e.clientY;
+    if (!started) { hx = mx; hy = my; started = true; addPoint(hx, hy); }
+    active = true;
+    hint.classList.add('gone');
+    if (e.pointerType !== 'touch') {
+      ring.classList.add('on');
+      ring.style.transform = 'translate(' + mx + 'px,' + my + 'px)';
+    }
+  }
+
+  function end() { started = false; active = false; ring.classList.remove('on'); }
+
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerdown', move);
+  window.addEventListener('pointerup', function (e) { if (e.pointerType === 'touch') end(); });
+  window.addEventListener('pointercancel', end);
+  window.addEventListener('blur', end);
+  document.documentElement.addEventListener('mouseleave', end);
+
+  /* ============ 루프 ============ */
+
+  function tick() {
+    if (active && started) {
+      var dx = mx - hx, dy = my - hy;
+      var dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist > 0.4) {
+        var nx = hx + dx * FOLLOW, ny = hy + dy * FOLLOW;
+        var sx = nx - hx, sy = ny - hy;
+        var segLen = Math.sqrt(sx * sx + sy * sy);
+        var step = Math.max(2, R * 0.2);
+        var n = Math.max(1, Math.ceil(segLen / step));
+        for (var i = 1; i <= n; i++) {
+          addPoint(hx + sx * i / n, hy + sy * i / n);   // 이동 경로를 빈틈없이 채움
+        }
+        hx = nx; hy = ny;
+      }
+    }
+    if (anim) {
+      var p = Math.min(1, (performance.now() - anim.t0) / anim.dur);
+      var e = 1 - Math.pow(1 - p, 3);
+      drawLit(anim.cx, anim.cy, anim.r0 + (litR - anim.r0) * e);
+      dirty = true;
+      if (p >= 1) anim = null;
+    }
+    if (dirty) { render(); dirty = false; }
+    requestAnimationFrame(tick);
+  }
+
+  /* ============ 카테고리 / 여정 버튼 ============ */
+
+  var categoryButtons = Array.prototype.slice.call(document.querySelectorAll('.category-control'));
+  categoryButtons.forEach(function (button) {
+    button.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var pressed = button.getAttribute('aria-pressed') === 'true';
+      button.setAttribute('aria-pressed', String(!pressed));
+      /* 토글을 끄면 그 카테고리의 에셋이 숨겨지고, 켜면 다시 나타나요 */
+      var cat = button.getAttribute('data-category');
+      LANDMARKS.forEach(function (L, i) {
+        if (L.cat !== cat) return;
+        lmEls[i].style.visibility = pressed ? 'hidden' : 'visible';
+        lmEls[i].style.pointerEvents = pressed ? 'none' : 'auto';
+      });
+      if (pressed && focused && focused.L.cat === cat) resetFocus();
+    });
+  });
+
+  document.getElementById('restartTrip').addEventListener('click', function (e) {
+    e.stopPropagation();
+    resetting = true;                              // reload 때 pagehide가 다시 저장하지 않도록 막기
+    routeIds = [];
+    pts = [];
+    lit = [];
+    try { sessionStorage.removeItem(STORE_KEY); } catch (err) {}
+    renderLandmarkRoute();
+    window.location.reload();
+  });
+
+  var tripResult = document.getElementById('tripResult');
+  document.getElementById('finishTrip').addEventListener('click', function (e) {
+    e.stopPropagation();
+    var visited = lit.map(function (id) {
+      var found = LANDMARKS.find(function (L) { return L.id === id; });
+      return found ? found.name : null;
+    }).filter(Boolean);
+    var summary = document.getElementById('tripSummary');
+    summary.textContent = visited.length
+      ? '이번 여정에서 발견한 장소'
+      : '아직 발견한 랜드마크가 없어요. 지도를 움직여 장소를 찾아보세요.';
+    var oldList = tripResult.querySelector('.route-list');
+    if (oldList) oldList.remove();
+    if (routeIds.length) {
+      /* 클릭한 순서대로 이어진 줄만 작게 보여주기 (경로가 차지하는 영역에 맞춰 확대) */
+      var rp = routeIds.map(function (id) {
+        var place = LANDMARKS.find(function (L) { return L.id === id; });
+        return place ? { x: place.x * rect.w, y: place.y * rect.h, name: place.name } : null;
+      }).filter(Boolean);
+      var minX = Math.min.apply(null, rp.map(function (q) { return q.x; })),
+          maxX = Math.max.apply(null, rp.map(function (q) { return q.x; })),
+          minY = Math.min.apply(null, rp.map(function (q) { return q.y; })),
+          maxY = Math.max.apply(null, rp.map(function (q) { return q.y; }));
+      /* ▼ 여기 숫자(화면 px 기준)만 바꾸면 크기·간격이 조절돼요 */
+      var DISP    = 1000;   // 동선 그래픽 전체 가로 크기
+      var PADPX   = 150;    // 경로 바깥 여백 (글자가 잘리지 않게)
+      var NUM_PX  = 70;     // 번호(①) 크기
+      var NAME_PX = 36;     // 장소 이름 크기
+      var NAME_DY = 82;     // 번호 중심 → 이름 중심 거리 (클수록 이름이 아래로 멀어짐)
+      var TRIM    = 52;     // 선이 번호에서 떨어지는 거리 (클수록 선이 번호와 멀어짐)
+      var LINE_W  = 4;      // 선 굵기
+
+      var w0 = Math.max(maxX - minX, rect.w * 0.15), h0 = Math.max(maxY - minY, rect.w * 0.15);
+      var k = w0 / (DISP - PADPX * 2);                 // 화면 1px = 지도 좌표 k
+      var pad = PADPX * k;
+      var bw = w0 + pad * 2, bh = h0 + pad * 2;
+      var vx = (minX + maxX) / 2 - bw / 2, vy = (minY + maxY) / 2 - bh / 2;
+      var NS = 'http://www.w3.org/2000/svg';
+      var mini = document.createElementNS(NS, 'svg');
+      mini.setAttribute('viewBox', vx + ' ' + vy + ' ' + bw + ' ' + bh);
+      mini.setAttribute('aria-label', '내가 이어 본 여정');
+      mini.style.width = DISP + 'px';
+
+      /* 선: 번호 바로 옆까지 닿지 않게 양 끝을 조금씩 줄여서 그림 */
+      for (var j = 0; j < rp.length - 1; j++) {
+        var A = rp[j], B = rp[j + 1];
+        var dx = B.x - A.x, dy = B.y - A.y, len = Math.sqrt(dx * dx + dy * dy), t = TRIM * k;
+        if (len <= t * 2 + 4 * k) continue;            // 너무 가까우면 선 생략
+        var ln = document.createElementNS(NS, 'line');
+        ln.setAttribute('x1', A.x + dx / len * t); ln.setAttribute('y1', A.y + dy / len * t);
+        ln.setAttribute('x2', B.x - dx / len * t); ln.setAttribute('y2', B.y - dy / len * t);
+        ln.setAttribute('class', 'mini-line');
+        ln.setAttribute('stroke-width', LINE_W);
+        mini.appendChild(ln);
+      }
+
+      var CIRCLED = '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳';
+      rp.forEach(function (q, i) {
+        var num = document.createElementNS(NS, 'text');
+        num.setAttribute('x', q.x); num.setAttribute('y', q.y);
+        num.setAttribute('class', 'mini-num');
+        num.setAttribute('font-size', NUM_PX * k);
+        num.textContent = i < CIRCLED.length ? CIRCLED.charAt(i) : String(i + 1);
+        mini.appendChild(num);
+        var nm = document.createElementNS(NS, 'text');
+        nm.setAttribute('x', q.x); nm.setAttribute('y', q.y + NAME_DY * k);
+        nm.setAttribute('class', 'mini-name');
+        nm.setAttribute('font-size', NAME_PX * k);
+        nm.textContent = q.name;
+        mini.appendChild(nm);
+      });
+      var list = document.createElement('div');
+      list.className = 'route-list';
+      list.appendChild(mini);
+      summary.insertAdjacentElement('afterend', list);
+    }
+    tripResult.classList.add('show');
+  });
+  document.getElementById('closeTripResult').addEventListener('click', function () {
+    tripResult.classList.remove('show');
+  });
+  tripResult.addEventListener('click', function (e) {
+    if (e.target === tripResult) tripResult.classList.remove('show');
+  });
+
+  /* ============ 시작 ============ */
+
+  /* 페이지를 떠날 때(상세페이지 이동, 탭 전환, 새로고침) 상태 저장 */
+  window.addEventListener('pagehide', saveState);
+
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'hidden') saveState();
+  });
+
+  mapImg.onload = function () { mapReady = true; layout(); };
+  mapImg.onerror = function () { console.warn('map.png를 불러오지 못했어요. 파일 위치를 확인해 주세요.'); };
+  mapImg.src = MAP_SRC;
+
+  window.addEventListener('resize', relayout);
+  if (window.ResizeObserver) new ResizeObserver(relayout).observe(area);
+  if (pts.length || lit.length) hint.classList.add('gone');
+  layout();
+  tick();
+})();
+</script>
+</body>
+</html>
