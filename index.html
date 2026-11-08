@@ -47,7 +47,7 @@
   }
  .brand img {
   display: block;
-  width: clamp(200px, 35vw, 650px);
+  width: clamp(140px, 20vw, 380px);   /* 메인 타이틀 크기 */
   height: auto;
   user-select: none;
   -webkit-user-drag: none;
@@ -115,7 +115,7 @@
   .hint {
     grid-column: 2; grid-row: 3; align-self: end; justify-self: center;
     margin-bottom: 28px; text-align: center;
-    font: 14px/1.4 "Helvetica Neue", Arial, sans-serif; color: #c9cdea;
+    font: 14px/1.4 "Helvetica Neue", Arial, sans-serif; color: var(--blue);
     transition: opacity .4s;
   }
   .hint.gone { opacity: 0; }
@@ -134,7 +134,7 @@
       grid-template-rows: auto auto minmax(0, 1fr) auto;
     }
     .brand { grid-column: 1; grid-row: 1; margin: 10px 0 0 16px; }
-    .brand img { width: clamp(200px, 35vw, 650px); }
+    .brand img { width: clamp(120px, 36vw, 240px); }
     .ui-panel {
       grid-column: 1; grid-row: 2; flex-direction: row; flex-wrap: wrap;
       gap: 10px 18px; margin: 12px 16px 0;
@@ -188,6 +188,11 @@
   .go-btn.show { opacity: 1; pointer-events: auto; transform: translate(-50%, 0); }
   .go-btn:hover { background: var(--blue); color: var(--yellow); box-shadow: 0 0 0 2px var(--yellow); }
 
+  /* 상세페이지가 아직 없는 장소의 버튼: 회색 + 클릭 불가 */
+  .go-btn.disabled, .go-btn.disabled:hover {
+    background: #c8c8c8; color: #8a8a8a; box-shadow: 0 0 0 2px #a8a8a8;
+  }
+
   /* 선택한 랜드마크를 순서대로 연결하는 경로 */
   #landmarkRoute {
     position: fixed; inset: 0; width: 100%; height: 100%;
@@ -214,8 +219,19 @@
     text-align: center; cursor: auto;
   }
   .trip-result.show { display: flex; }
-  .trip-result-inner { max-width: 680px; }
-  .result-logo { display: block; margin: 0 auto; width: clamp(240px, 34vw, 560px); height: auto; user-select: none; -webkit-user-drag: none; }  /* 로고 크기는 width만 바꾸세요 */
+  .trip-result { overflow-y: auto; }
+  .trip-result-inner {
+    width: 100%; max-width: 1200px; margin: auto;
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
+    column-gap: clamp(20px, 4vw, 60px); align-items: center;
+  }
+  .trip-result-inner > .result-logo,
+  .trip-result-inner > p,
+  .trip-result-inner > button { grid-column: 1 / -1; justify-self: center; }
+  @media (max-width: 899px), (max-aspect-ratio: 1/1) {
+    .trip-result-inner { grid-template-columns: minmax(0, 1fr); }
+  }
+  .result-logo { display: block; margin: 0 auto; width: clamp(200px, 26vw, 420px); height: auto; user-select: none; -webkit-user-drag: none; }  /* 로고 크기는 width만 바꾸세요 */
   .trip-result p {
     margin: 12px 0 24px; color: white;
     font: 400 clamp(14px, 1.4vw, 18px)/1.6 "Helvetica Neue", Arial, sans-serif;
@@ -225,8 +241,14 @@
     background: #ffff00; color: #1428ff;
     font: 700 16px/1.2 "Helvetica Neue", Arial, sans-serif; cursor: pointer;
   }
-  .trip-result-inner .route-list { width: 100vw; margin: 14px 0 22px calc(50% - 50vw); display: flex; justify-content: center; }
-  .route-list svg { display: block; flex: none; max-width: 92vw; height: auto; max-height: 45vh; overflow: visible; }
+  .trip-result-inner .route-list { width: 100%; margin: 0; display: flex; justify-content: center; }
+  .route-list svg { display: block; width: 100%; max-width: 720px; height: auto; max-height: 52vh; overflow: visible; }
+  .trip-stats { margin: 6px 0 0; }
+  .trip-stats .stat-row { display: flex; justify-content: center; gap: clamp(14px, 2vw, 30px); flex-wrap: wrap; }
+  .trip-stats .stat b { display: block; font: 900 clamp(20px, 2.1vw, 32px)/1.1 "Helvetica Neue", Arial, sans-serif; color: #ffff00; }
+  .trip-stats .stat span { display: block; margin-top: 4px; font: 400 clamp(12px, 1.1vw, 15px)/1.4 "Helvetica Neue", Arial, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; color: #fff; }
+  .trip-stats .stat-note { margin-top: 26px; color: #fff; font: 400 clamp(13px, 1.2vw, 16px)/1.6 "Helvetica Neue", Arial, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
+  .trip-stats .stat-note.small { font-size: clamp(11px, 1vw, 13px); opacity: .8; }
   .route-list .mini-line {
     fill: none; stroke: #ffff00;
     stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 6 5;
@@ -268,20 +290,20 @@
     <button class="category-control" type="button" data-category="landmark" aria-pressed="true" aria-label="랜드마크 표시">
       <img src="btn-landmark.png" alt="랜드마크"><span class="toggle" aria-hidden="true"></span>
     </button>
-    <button class="category-control" type="button" data-category="museum" aria-pressed="false" aria-label="박물관 표시">
+    <button class="category-control" type="button" data-category="museum" aria-pressed="true" aria-label="박물관 표시">
       <img src="btn-museum.png" alt="박물관"><span class="toggle" aria-hidden="true"></span>
     </button>
-    <button class="category-control" type="button" data-category="restaurant" aria-pressed="false" aria-label="식당 표시">
+    <button class="category-control" type="button" data-category="restaurant" aria-pressed="true" aria-label="식당 표시">
       <img src="btn-restaurant.png" alt="식당"><span class="toggle" aria-hidden="true"></span>
     </button>
-    <button class="category-control" type="button" data-category="cafe" aria-pressed="false" aria-label="카페 표시">
+    <button class="category-control" type="button" data-category="cafe" aria-pressed="true" aria-label="카페 표시">
       <img src="btn-cafe.png" alt="카페"><span class="toggle" aria-hidden="true"></span>
     </button>
   </nav>
 
   <main id="mapArea" aria-hidden="true"></main>
 
-  <div class="hint" id="hint">Move your cursor to light up the map</div>
+  <div class="hint" id="hint">Click a place to light up the map</div>
 
   <div class="trip-actions">
     <button type="button" id="restartTrip" aria-label="여정 다시하기"><img src="btn-restart.png" alt="여정 다시하기"></button>
@@ -299,7 +321,7 @@
 
 <div class="ring" id="ring"></div>
 
-<audio id="bgm" src="Parismusic.mp3" loop preload="auto"></audio>
+<audio id="bgm" loop preload="none"></audio>   <!-- 음악 파일은 랜딩을 클릭할 때 불러와요 (페이지 로딩이 느려지지 않게) -->
 
 <div class="landing" id="landing" role="button" tabindex="0" aria-label="파리 지도 시작하기">
   <img src="firstbg.png" alt="Paris Map">
@@ -316,9 +338,20 @@
   var RADIUS_RATIO = 0.06;    // 밝혀지는 원 반지름 (화면 짧은 변 기준) ← 작게: 0.04 / 크게: 0.09
   var RADIUS_MIN = 36;        // 최소 반지름(px)
   var FOLLOW = 0.35;          // 원이 마우스를 따라오는 속도 (작을수록 부드럽게 끌림)
-  var ASSET_SIZE = 0.10;      // 모든 에셋 공통 크기 (지도 가로폭 대비) ← 전체 키우기/줄이기는 이 숫자만
+  var ASSET_SIZE = 0.09;      // 모든 에셋 공통 크기 (지도 가로폭 대비) ← 전체 키우기/줄이기는 이 숫자만
   var LIT_RATIO = 0.42;       // 랜드마크를 눌렀을 때 주변 지도가 밝혀지는 반지름 (화면 짧은 변 대비)
-  var LIGHT_MS = 1150;        // 주변 지도가 밝혀지는 시간
+  var LIGHT_MS = 1200;        // 밝아지는 데 걸리는 시간(ms)
+  var FULL_LIGHT_RATIO = 1;   // 에셋을 이 비율만큼 눌렀을 때 지도 전체가 켜져요 (1 = 전부 / 0.8 = 80%만 눌러도)
+  var LIGHT_MODE = 'area';    // 에셋을 눌렀을 때: 'area' = 누른 에셋 주변만 밝아짐(누를수록 쌓임) / 'all' = 지도 전체가 밝아짐
+                              // (마우스 이동으로는 어느 모드에서도 밝아지지 않아요)
+
+  /* 상세페이지 파일이 실제로 있는 장소 id (각 장소의 href 파일로 이동해요).
+     여기에 없는 장소는 에셋은 눌리지만 '상세페이지 보기' 버튼이 회색으로 막혀요. 새 상세페이지를 만들면 id를 추가하세요. */
+  var DETAIL_PAGES = ['eiffel', 'arc', 'notre', 'sacre', 'louvre'];
+
+  /* 여행 요약 계산 설정 */
+  var WALK_M_PER_MIN = 80;    // 도보 속도: 분당 80m (시속 약 4.8km)
+  var DETOUR = 1.25;          // 직선거리 → 실제 걷는 거리 보정
  
   /* 랜드마크 배치
      x, y  : 지도 이미지 안에서의 중심 위치 (0~1)
@@ -328,29 +361,31 @@
      위치가 어긋나면 x, y, size 숫자만 조금씩 바꾸면 돼요. */
   var LANDMARKS = [
     /* ---- 랜드마크 ---- */
-    { id: 'eiffel',     cat: 'landmark', name: 'Eiffel Tower',     img: 'lm-eiffel.png',     href: 'eiffel.html',       x: 0.20, y: 0.55, size: 0.096 },
-    { id: 'versailles', cat: 'landmark', name: 'Versailles',       img: 'lm-versailles.png',   href: 'versailles.html',   x: 0.22, y: 0.87, size: 0.088 },
-    { id: 'sacre',      cat: 'landmark', name: 'Montmartre',       img: 'lm-montmartre.png',   href: 'montmartre.html',   x: 0.58, y: 0.12, size: 0.093 },
-    { id: 'arc',        cat: 'landmark', name: 'Arc de Triomphe',  img: 'lm-arc.png',     href: 'arc.html',          x: 0.25, y: 0.30, size: 0.098 },
-    { id: 'notre',      cat: 'landmark', name: 'Notre-Dame',       img: 'lm-notredame.png',   href: 'notredame.html',    x: 0.62, y: 0.70, size: 0.078 },
-    { id: 'hotelville', cat: 'landmark', name: 'Hôtel de Ville',   img: 'lm-hoteldeville.png', href: 'hoteldeville.html', x: 0.76, y: 0.52, size: 0.08 },
+    { id: 'eiffel',     cat: 'landmark', name: 'Eiffel Tower',     img: 'lm-eiffel.png',     href: 'eiffel.html',       x: 0.20, y: 0.57, lat: 48.8584, lng: 2.2945, size: 0.096 },
+    { id: 'versailles', cat: 'landmark', name: 'Versailles',       img: 'lm-versailles.png',   href: 'versailles.html',   x: 0.22, y: 0.87, lat: 48.8049, lng: 2.1204, size: 0.088 },
+    { id: 'sacre',      cat: 'landmark', name: 'Montmartre',       img: 'lm-montmartre.png',   href: 'montmartre.html',   x: 0.58, y: 0.12, lat: 48.8867, lng: 2.3431, size: 0.093 },
+    { id: 'arc',        cat: 'landmark', name: 'Arc de Triomphe',  img: 'lm-arc.png',     href: 'arc.html',          x: 0.25, y: 0.30, lat: 48.8738, lng: 2.295, size: 0.098 },
+    { id: 'notre',      cat: 'landmark', name: 'Notre-Dame',       img: 'lm-notredame.png',   href: 'notredame.html',    x: 0.62, y: 0.69, lat: 48.853, lng: 2.3499, size: 0.078 },
+    { id: 'hotelville', cat: 'landmark', name: 'Hôtel de Ville',   img: 'lm-hoteldeville.png', href: 'hoteldeville.html', x: 0.76, y: 0.52, lat: 48.8566, lng: 2.3522, size: 0.08 },
     /* ---- 미술관 ---- */
-    { id: 'orsay',     cat: 'museum', name: "Musée d'Orsay",        img: 'lm-orsay.png',   href: 'orsay.html',     x: 0.40, y: 0.64, size: 0.08 },
-    { id: 'pompidou',  cat: 'museum', name: 'Centre Pompidou',      img: 'lm-pompidou.png',   href: 'pompidou.html',  x: 0.68, y: 0.36, size: 0.08 },
-    { id: 'louvre',    cat: 'museum', name: 'The Louvre',           img: 'lm-louvre.png',   href: 'louvre.html',    x: 0.46, y: 0.46, size: 0.092 },
-    { id: 'orangerie', cat: 'museum', name: "Musée de l'Orangerie", img: 'lm-orangerie.png', href: 'orangerie.html', x: 0.34, y: 0.46, size: 0.08 },
-    { id: 'opera',     cat: 'museum', name: 'Opéra Garnier',        img: 'lm-opera.png',   href: 'opera.html',     x: 0.47, y: 0.28, size: 0.08 },
+    { id: 'orsay',     cat: 'museum', name: "Musée d'Orsay",        img: 'lm-orsay.png',   href: 'orsay.html',     x: 0.40, y: 0.65, lat: 48.86, lng: 2.3266, size: 0.08 },
+    { id: 'pompidou',  cat: 'museum', name: 'Centre Pompidou',      img: 'lm-pompidou.png',   href: 'pompidou.html',  x: 0.68, y: 0.36, lat: 48.8606, lng: 2.3522, size: 0.08 },
+    { id: 'louvre',    cat: 'museum', name: 'The Louvre',           img: 'lm-louvre.png',   href: 'louvre.html',    x: 0.49, y: 0.46, lat: 48.8606, lng: 2.3376, size: 0.092 },
+    { id: 'orangerie', cat: 'museum', name: "Musée de l'Orangerie", img: 'lm-orangerie.png', href: 'orangerie.html', x: 0.35, y: 0.47, lat: 48.8638, lng: 2.3226, size: 0.08 },
+    { id: 'opera',     cat: 'museum', name: 'Opéra Garnier',        img: 'lm-opera.png',   href: 'opera.html',     x: 0.47, y: 0.28, lat: 48.8719, lng: 2.3316, size: 0.08 },
     /* ---- 카페 ---- */
-    { id: 'cafe1', cat: 'cafe', name: 'Café 1', img: 'lm-cafe1.png', href: 'cafe1.html', x: 0.10, y: 0.20, size: 0.072 },
-    { id: 'cafe2', cat: 'cafe', name: 'Café 2', img: 'lm-cafe2.png', href: 'cafe2.html', x: 0.87, y: 0.22, size: 0.072 },
-    { id: 'cafe3', cat: 'cafe', name: 'Café 3', img: 'lm-cafe3.png', href: 'cafe3.html', x: 0.08, y: 0.40, size: 0.072 },
-    { id: 'cafe4', cat: 'cafe', name: 'Café 4', img: 'lm-cafe4.png', href: 'cafe4.html', x: 0.82, y: 0.83, size: 0.072 },
+    { id: 'cafe1', cat: 'cafe', name: 'Café 1', img: 'lm-cafe1.png', href: 'cafe1.html', x: 0.10, y: 0.20, lat: 48.8785, lng: 2.321, size: 0.072 },
+    { id: 'cafe2', cat: 'cafe', name: 'Café 2', img: 'lm-cafe2.png', href: 'cafe2.html', x: 0.87, y: 0.22, lat: 48.8695, lng: 2.3679, size: 0.072 },
+    { id: 'cafe3', cat: 'cafe', name: 'Café 3', img: 'lm-cafe3.png', href: 'cafe3.html', x: 0.08, y: 0.39, lat: 48.8487, lng: 2.3157, size: 0.072 },
+    { id: 'cafe4', cat: 'cafe', name: 'Café 4', img: 'lm-cafe4.png', href: 'cafe4.html', x: 0.82, y: 0.83, lat: 48.8502, lng: 2.3707, size: 0.072 },
     /* ---- 식당 ---- */
-    { id: 'food1', cat: 'restaurant', name: 'Restaurant 1', img: 'lm-restaurant1.png', href: 'restaurant1.html', x: 0.08, y: 0.68, size: 0.072 },
-    { id: 'food2', cat: 'restaurant', name: 'Restaurant 2', img: 'lm-restaurant2.png', href: 'restaurant2.html', x: 0.74, y: 0.15, size: 0.072 },
-    { id: 'food3', cat: 'restaurant', name: 'Restaurant 3', img: 'lm-restaurant3.png', href: 'restaurant3.html', x: 0.52, y: 0.84, size: 0.072 },
-    { id: 'food4', cat: 'restaurant', name: 'Restaurant 4', img: 'lm-restaurant4.png', href: 'restaurant4.html', x: 0.89, y: 0.51, size: 0.072 }
+    { id: 'food1', cat: 'restaurant', name: 'Restaurant 1', img: 'lm-restaurant1.png', href: 'restaurant1.html', x: 0.07, y: 0.77, lat: 48.8657, lng: 2.2808, size: 0.072 },
+    { id: 'food2', cat: 'restaurant', name: 'Restaurant 2', img: 'lm-restaurant2.png', href: 'restaurant2.html', x: 0.74, y: 0.15, lat: 48.8813, lng: 2.3682, size: 0.072 },
+    { id: 'food3', cat: 'restaurant', name: 'Restaurant 3', img: 'lm-restaurant3.png', href: 'restaurant3.html', x: 0.52, y: 0.85, lat: 48.8442, lng: 2.3383, size: 0.072 },
+    { id: 'food4', cat: 'restaurant', name: 'Restaurant 4', img: 'lm-restaurant4.png', href: 'restaurant4.html', x: 0.89, y: 0.51, lat: 48.8593, lng: 2.3694, size: 0.072 }
   ];
+
+  var FULL_NEED = Math.max(1, Math.ceil(LANDMARKS.length * FULL_LIGHT_RATIO));   // 전체가 켜지는 데 필요한 클릭 수
 
   /* ============ 준비 ============ */
 
@@ -392,6 +427,7 @@
   bgm.volume = BGM_VOLUME;
   function startMusic() {
     if (!bgm.paused) return;
+    if (!bgm.getAttribute('src')) bgm.src = 'Parismusic.mp3';
     var pr = bgm.play();
     if (pr && pr.catch) pr.catch(function () {});  // 막혀도 에러 없이 넘어감
   }
@@ -450,14 +486,22 @@
 
   loadState();                                     // 페이지가 열리자마자 복원
 
+  function hasDetail(L) { return DETAIL_PAGES.indexOf(L.id) >= 0; }
+  function detailHref(L) { return L.href; }
+  function litCount() { return lit.length; }
+
   /* 랜드마크 링크 생성 */
   var lmEls = LANDMARKS.map(function (L) {
     var a = document.createElement('a');
     a.className = 'lm';
-    a.href = L.href;
-    a.target = '_blank';
-    a.rel = 'noopener';
     a.setAttribute('aria-label', L.name);
+    if (hasDetail(L)) {
+      a.href = detailHref(L);
+      a.target = '_blank';
+      a.rel = 'noopener';
+    } else {
+      a.setAttribute('tabindex', '0');             // 링크는 없지만 키보드로도 누를 수 있게
+    }
     var im = document.createElement('img');
     im.src = L.img; im.alt = '';
     a.appendChild(im);
@@ -498,7 +542,10 @@
   document.body.appendChild(goBtn);
   goBtn.addEventListener('pointerenter', function () { ring.classList.add('big'); });
   goBtn.addEventListener('pointerleave', function () { ring.classList.remove('big'); });
-  goBtn.addEventListener('click', saveState);      // 상세페이지로 넘어가기 직전에 한 번 더 저장
+  goBtn.addEventListener('click', function (e) {
+    if (goBtn.classList.contains('disabled')) { e.preventDefault(); return; }
+    saveState();
+  });      // 상세페이지로 넘어가기 직전에 한 번 더 저장
 
   /* ============ 레이아웃 ============ */
 
@@ -547,7 +594,7 @@
   function relayout() {
     var ar = area.getBoundingClientRect();
     var key = [window.innerWidth, window.innerHeight, Math.round(ar.left), Math.round(ar.top), Math.round(ar.width), Math.round(ar.height)].join();
-    if (key !== lastKey) layout();
+    if (key !== lastKey) { lastKey = key; layout(); }
   }
 
   /* 부드러운 원 도장 */
@@ -592,16 +639,32 @@
     maskX.drawImage(sprite, x - R, y - R, R * 2, R * 2);
   }
 
+  /* 화면 맨 끝까지 덮을 수 있는 반지름 (클릭한 에셋 중심) */
+  function coverR(cx, cy) {
+    var d = Math.max(Math.hypot(cx, cy), Math.hypot(vw - cx, cy), Math.hypot(cx, vh - cy), Math.hypot(vw - cx, vh - cy));
+    return d / 0.7 + 4;                            // 가장자리 부드러운 구간(0.7 이후)까지 완전히 덮기
+  }
+
+  /* 한 번이라도 에셋을 눌렀다면 지도 전체가 켜진 상태로 복원 */
   function replay() {
     maskX.setTransform(dpr, 0, 0, dpr, 0, 0);
     maskX.clearRect(0, 0, vw, vh);
-    for (var i = 0; i < pts.length; i++) {
-      stamp(rect.x + pts[i][0] * rect.w, rect.y + pts[i][1] * rect.h);
+    if (!lit.length) return;
+    if (LIGHT_MODE === 'all') {                    // 전체 모드: 첫 에셋 기준으로 화면 전체
+      var first = LANDMARKS.find(function (L) { return L.id === lit[0]; });
+      if (!first) return;
+      var cx = rect.x + first.x * rect.w, cy = rect.y + first.y * rect.h;
+      drawLit(cx, cy, coverR(cx, cy));
+      return;
     }
-    lit.forEach(function (id) {
-      LANDMARKS.forEach(function (L) {
-        if (L.id === id) drawLit(rect.x + L.x * rect.w, rect.y + L.y * rect.h, litR);
-      });
+    if (litCount() >= FULL_NEED) {                 // 다 눌렀으면 지도 전체
+      var mcx = rect.x + rect.w / 2, mcy = rect.y + rect.h / 2;
+      drawLit(mcx, mcy, coverR(mcx, mcy));
+      return;
+    }
+    lit.forEach(function (id) {                    // 주변 모드: 눌러 본 에셋마다 그 주변
+      var L = LANDMARKS.find(function (q) { return q.id === id; });
+      if (L) drawLit(rect.x + L.x * rect.w, rect.y + L.y * rect.h, litR);
     });
   }
 
@@ -655,14 +718,27 @@
     hint.classList.add('gone');
     ring.classList.remove('big');
 
-    goBtn.href = L.href;
+    if (hasDetail(L)) {                            // 상세페이지 있음: 정상 버튼
+      goBtn.href = detailHref(L);
+      goBtn.classList.remove('disabled');
+      goBtn.removeAttribute('aria-disabled');
+    } else {                                       // 상세페이지 없음: 회색으로 막기
+      goBtn.removeAttribute('href');
+      goBtn.classList.add('disabled');
+      goBtn.setAttribute('aria-disabled', 'true');
+    }
     goBtn.setAttribute('aria-label', L.name + ' 상세페이지로 이동');
     goBtn.removeAttribute('tabindex');
     placeGoBtn();
     goBtn.classList.add('show');
 
-    anim = { cx: rect.x + L.x * rect.w, cy: rect.y + L.y * rect.h, r0: R, t0: performance.now(), dur: LIGHT_MS };
-    if (lit.indexOf(L.id) < 0) lit.push(L.id);
+    var isNew = lit.indexOf(L.id) < 0;
+    if (LIGHT_MODE === 'all' ? !lit.length : isNew) {   // 밝아지는 애니메이션 시작
+      var ccx = rect.x + L.x * rect.w, ccy = rect.y + L.y * rect.h;
+      var reachesFull = isNew && (litCount() + 1 >= FULL_NEED);      // 이번 클릭으로 전부 눌렀는지
+      anim = { cx: ccx, cy: ccy, r0: R, r1: (LIGHT_MODE === 'all' || reachesFull) ? coverR(ccx, ccy) : litR, t0: performance.now(), dur: LIGHT_MS };
+    }
+    if (isNew) lit.push(L.id);
     saveState();
   }
 
@@ -682,13 +758,6 @@
   });
   window.addEventListener('keydown', function (e) { if (e.key === 'Escape') resetFocus(); });
 
-  function addPoint(x, y) {
-    stamp(x, y);
-    pts.push([(x - rect.x) / rect.w, (y - rect.y) / rect.h]);
-    if (pts.length > 40000) pts.splice(0, 10000);
-    dirty = true;
-  }
-
   function render() {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.globalCompositeOperation = 'source-over';
@@ -701,21 +770,16 @@
 
   /* ============ 포인터 ============ */
 
-  var mx = 0, my = 0, hx = 0, hy = 0, started = false, active = false;
-
+  /* 커서 링만 따라다니고, 더 이상 지도를 그리지 않아요 */
   function move(e) {
-    if (landingOn) return;                         // 랜딩 화면에서는 지도를 밝히지 않음
-    mx = e.clientX; my = e.clientY;
-    if (!started) { hx = mx; hy = my; started = true; addPoint(hx, hy); }
-    active = true;
-    hint.classList.add('gone');
+    if (landingOn) return;
     if (e.pointerType !== 'touch') {
       ring.classList.add('on');
-      ring.style.transform = 'translate(' + mx + 'px,' + my + 'px)';
+      ring.style.transform = 'translate(' + e.clientX + 'px,' + e.clientY + 'px)';
     }
   }
 
-  function end() { started = false; active = false; ring.classList.remove('on'); }
+  function end() { ring.classList.remove('on'); }
 
   window.addEventListener('pointermove', move);
   window.addEventListener('pointerdown', move);
@@ -727,25 +791,10 @@
   /* ============ 루프 ============ */
 
   function tick() {
-    if (active && started) {
-      var dx = mx - hx, dy = my - hy;
-      var dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist > 0.4) {
-        var nx = hx + dx * FOLLOW, ny = hy + dy * FOLLOW;
-        var sx = nx - hx, sy = ny - hy;
-        var segLen = Math.sqrt(sx * sx + sy * sy);
-        var step = Math.max(2, R * 0.2);
-        var n = Math.max(1, Math.ceil(segLen / step));
-        for (var i = 1; i <= n; i++) {
-          addPoint(hx + sx * i / n, hy + sy * i / n);   // 이동 경로를 빈틈없이 채움
-        }
-        hx = nx; hy = ny;
-      }
-    }
     if (anim) {
       var p = Math.min(1, (performance.now() - anim.t0) / anim.dur);
       var e = 1 - Math.pow(1 - p, 3);
-      drawLit(anim.cx, anim.cy, anim.r0 + (litR - anim.r0) * e);
+      drawLit(anim.cx, anim.cy, anim.r0 + (anim.r1 - anim.r0) * e);
       dirty = true;
       if (p >= 1) anim = null;
     }
@@ -783,19 +832,73 @@
     window.location.reload();
   });
 
+  /* 두 장소 사이 도보 거리(m): 위·경도 직선거리 × 보정 */
+  function walkMeters(A, B) {
+    var R_E = 6371000, rad = Math.PI / 180;
+    var dLat = (B.lat - A.lat) * rad, dLng = (B.lng - A.lng) * rad;
+    var h = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(A.lat * rad) * Math.cos(B.lat * rad) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    return 2 * R_E * Math.asin(Math.sqrt(h)) * DETOUR;
+  }
+  function fmtDist(m) { return m < 1000 ? (Math.round(m / 10) * 10) + 'm' : (m / 1000).toFixed(1) + 'km'; }
+  function fmtWalk(min) {
+    min = Math.max(1, Math.round(min));
+    if (min < 60) return min + '분';
+    var h = Math.floor(min / 60), r = min % 60;
+    return h + '시간' + (r ? ' ' + r + '분' : '');
+  }
+
   var tripResult = document.getElementById('tripResult');
   document.getElementById('finishTrip').addEventListener('click', function (e) {
     e.stopPropagation();
-    var visited = lit.map(function (id) {
-      var found = LANDMARKS.find(function (L) { return L.id === id; });
-      return found ? found.name : null;
-    }).filter(Boolean);
     var summary = document.getElementById('tripSummary');
-    summary.textContent = visited.length
-      ? '이번 여정에서 발견한 장소'
-      : '아직 발견한 랜드마크가 없어요. 지도를 움직여 장소를 찾아보세요.';
+    var routePlaces = routeIds.map(function (id) {
+      return LANDMARKS.find(function (L) { return L.id === id; });
+    }).filter(Boolean);
+    summary.textContent = routePlaces.length
+      ? ''                                         // 요약이 있을 땐 제목 글자를 비워 둠
+      : '아직 발견한 장소가 없어요. 장소를 눌러 지도를 밝혀 보세요.';
     var oldList = tripResult.querySelector('.route-list');
     if (oldList) oldList.remove();
+    var oldStats = tripResult.querySelector('.trip-stats');
+    if (oldStats) oldStats.remove();
+
+    if (routePlaces.length) {
+      /* 구간별 도보 거리 · 시간 계산 */
+      var totalM = 0, nLegs = routePlaces.length - 1;
+      for (var li = 0; li < nLegs; li++) {
+        var dM = walkMeters(routePlaces[li], routePlaces[li + 1]);
+        totalM += dM;
+      }
+      var CAT_KO = { landmark: '랜드마크', museum: '미술관', restaurant: '식당', cafe: '카페' };
+      var catCount = {};
+      routePlaces.forEach(function (P) { catCount[P.cat] = (catCount[P.cat] || 0) + 1; });
+      var catText = Object.keys(CAT_KO).filter(function (c) { return catCount[c]; })
+        .map(function (c) { return CAT_KO[c] + ' ' + catCount[c]; }).join(' · ');
+
+      var items = [[routePlaces.length + '곳', '방문한 장소']];
+      if (nLegs > 0) {
+        items.push([fmtDist(totalM), '총 이동 거리']);
+        items.push([fmtWalk(totalM / WALK_M_PER_MIN), '도보 소요 시간']);
+      }
+      var stats = document.createElement('div');
+      stats.className = 'trip-stats';
+      var row = document.createElement('div');
+      row.className = 'stat-row';
+      items.forEach(function (it) {
+        var box = document.createElement('div');
+        box.className = 'stat';
+        var b1 = document.createElement('b'); b1.textContent = it[0];
+        var s1 = document.createElement('span'); s1.textContent = it[1];
+        box.appendChild(b1); box.appendChild(s1); row.appendChild(box);
+      });
+      stats.appendChild(row);
+      var cat = document.createElement('div');
+      cat.className = 'stat-note';
+      cat.textContent = catText;
+      stats.appendChild(cat);
+      summary.insertAdjacentElement('afterend', stats);
+    }
     if (routeIds.length) {
       /* 클릭한 순서대로 이어진 줄만 작게 보여주기 (경로가 차지하는 영역에 맞춰 확대) */
       var rp = routeIds.map(function (id) {
@@ -807,13 +910,13 @@
           minY = Math.min.apply(null, rp.map(function (q) { return q.y; })),
           maxY = Math.max.apply(null, rp.map(function (q) { return q.y; }));
       /* ▼ 여기 숫자(화면 px 기준)만 바꾸면 크기·간격이 조절돼요 */
-      var DISP    = 1000;   // 동선 그래픽 전체 가로 크기
-      var PADPX   = 150;    // 경로 바깥 여백 (글자가 잘리지 않게)
-      var NUM_PX  = 70;     // 번호(①) 크기
-      var NAME_PX = 36;     // 장소 이름 크기
-      var NAME_DY = 82;     // 번호 중심 → 이름 중심 거리 (클수록 이름이 아래로 멀어짐)
-      var TRIM    = 52;     // 선이 번호에서 떨어지는 거리 (클수록 선이 번호와 멀어짐)
-      var LINE_W  = 4;      // 선 굵기
+      var DISP    = 640;    // 동선 그래픽 기준 가로 크기 (실제 표시 크기는 화면 칸에 맞춰 자동 조절)
+      var PADPX   = 90;     // 경로 바깥 여백 (글자가 잘리지 않게)
+      var NUM_PX  = 30;     // 번호(①) 크기
+      var NAME_PX = 14;     // 장소 이름 크기
+      var GAP_PX  = 5;      // 번호와 이름 사이 간격
+      var TRIM    = 20;     // 선이 번호에서 떨어지는 거리
+      var LINE_W  = 2.5;    // 선 굵기
 
       var w0 = Math.max(maxX - minX, rect.w * 0.15), h0 = Math.max(maxY - minY, rect.w * 0.15);
       var k = w0 / (DISP - PADPX * 2);                 // 화면 1px = 지도 좌표 k
@@ -824,21 +927,25 @@
       var mini = document.createElementNS(NS, 'svg');
       mini.setAttribute('viewBox', vx + ' ' + vy + ' ' + bw + ' ' + bh);
       mini.setAttribute('aria-label', '내가 이어 본 여정');
-      mini.style.width = DISP + 'px';
+      var numR = NUM_PX * k * 0.6;                     // 번호가 차지하는 반지름
 
       /* 선: 번호 바로 옆까지 닿지 않게 양 끝을 조금씩 줄여서 그림 */
+      var segs = [];
       for (var j = 0; j < rp.length - 1; j++) {
         var A = rp[j], B = rp[j + 1];
         var dx = B.x - A.x, dy = B.y - A.y, len = Math.sqrt(dx * dx + dy * dy), t = TRIM * k;
         if (len <= t * 2 + 4 * k) continue;            // 너무 가까우면 선 생략
+        var sg = [A.x + dx / len * t, A.y + dy / len * t, B.x - dx / len * t, B.y - dy / len * t];
+        segs.push(sg);
         var ln = document.createElementNS(NS, 'line');
-        ln.setAttribute('x1', A.x + dx / len * t); ln.setAttribute('y1', A.y + dy / len * t);
-        ln.setAttribute('x2', B.x - dx / len * t); ln.setAttribute('y2', B.y - dy / len * t);
+        ln.setAttribute('x1', sg[0]); ln.setAttribute('y1', sg[1]);
+        ln.setAttribute('x2', sg[2]); ln.setAttribute('y2', sg[3]);
         ln.setAttribute('class', 'mini-line');
         ln.setAttribute('stroke-width', LINE_W);
         mini.appendChild(ln);
       }
 
+      /* 번호 */
       var CIRCLED = '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳';
       rp.forEach(function (q, i) {
         var num = document.createElementNS(NS, 'text');
@@ -847,8 +954,41 @@
         num.setAttribute('font-size', NUM_PX * k);
         num.textContent = i < CIRCLED.length ? CIRCLED.charAt(i) : String(i + 1);
         mini.appendChild(num);
+      });
+
+      /* 이름: 번호·선·다른 이름과 겹치지 않는 자리(아래/위/옆)를 골라서 배치 */
+      var numBoxes = rp.map(function (q) { return { a: q.x - numR, b: q.y - numR, c: q.x + numR, d: q.y + numR }; });
+      var placed = [];
+      function overlap(r1, r2) {
+        var ow = Math.min(r1.c, r2.c) - Math.max(r1.a, r2.a), oh = Math.min(r1.d, r2.d) - Math.max(r1.b, r2.b);
+        return (ow > 0 && oh > 0) ? ow * oh : 0;
+      }
+      function segHits(r, sgm) {
+        var n = 0;
+        for (var u = 0; u <= 10; u++) {
+          var px = sgm[0] + (sgm[2] - sgm[0]) * u / 10, py = sgm[1] + (sgm[3] - sgm[1]) * u / 10;
+          if (px > r.a && px < r.c && py > r.b && py < r.d) n++;
+        }
+        return n;
+      }
+      rp.forEach(function (q) {
+        var w = q.name.length * NAME_PX * k * 0.56, h = NAME_PX * k * 1.15, g = GAP_PX * k;
+        var ox = numR + g + w / 2, oy = numR + g + h / 2, sx = w / 2 + numR * 0.5, sy = oy * 0.85;
+        var cands = [[0, oy], [0, -oy], [ox, 0], [-ox, 0], [sx, sy], [-sx, sy], [sx, -sy], [-sx, -sy]];
+        var best = null;
+        cands.forEach(function (c, ci) {
+          var cx = q.x + c[0], cy = q.y + c[1];
+          var r = { a: cx - w / 2, b: cy - h / 2, c: cx + w / 2, d: cy + h / 2 };
+          var sc = ci * 0.1, h2 = h * h;
+          numBoxes.forEach(function (nb) { sc += overlap(r, nb) / h2 * 3; });
+          placed.forEach(function (pr) { sc += overlap(r, pr) / h2 * 4; });
+          segs.forEach(function (sgm) { sc += segHits(r, sgm) * 2; });
+          if (r.a < vx || r.c > vx + bw || r.b < vy || r.d > vy + bh) sc += 5;
+          if (!best || sc < best.sc) best = { sc: sc, cx: cx, cy: cy, r: r };
+        });
+        placed.push(best.r);
         var nm = document.createElementNS(NS, 'text');
-        nm.setAttribute('x', q.x); nm.setAttribute('y', q.y + NAME_DY * k);
+        nm.setAttribute('x', best.cx); nm.setAttribute('y', best.cy);
         nm.setAttribute('class', 'mini-name');
         nm.setAttribute('font-size', NAME_PX * k);
         nm.textContent = q.name;
@@ -857,7 +997,7 @@
       var list = document.createElement('div');
       list.className = 'route-list';
       list.appendChild(mini);
-      summary.insertAdjacentElement('afterend', list);
+      (tripResult.querySelector('.trip-stats') || summary).insertAdjacentElement('afterend', list);
     }
     tripResult.classList.add('show');
   });
